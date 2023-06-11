@@ -1,25 +1,28 @@
 {
-    "name": "mirzaev/telegram-registry-people",
-    "type": "robot",
-    "require": {
-        "badfarm/zanzara": "^0.9.0"
-    },
-    "license": "WTFPL",
-    "autoload": {
-        "psr-4": {
-            "mirzaev\\telegram\\registry\\people\\": "mirzaev/telegram/registry/people/system/"
-        }
-    },
-    "authors": [
-        {
-            "name": "Arsen Mirzaev Tatyano-Muradovich",
-            "email": "arsen@mirzaev.sexy"
-        }
-    ],
-    "minimum-stability": "stable",
-    "config": {
-        "allow-plugins": {
-            "php-http/discovery": true
-        }
-    }
+	"name": "mirzaev/google_sheets-parser",
+	"type": "robot",
+	"license": "WTFPL",
+	"autoload": {
+		"psr-4": {
+			"mirzaev\\google_sheets\\parser\\": "mirzaev/google_sheets/parser/system/"
+		}
+	},
+	"authors": [
+		{
+			"name": "Arsen Mirzaev Tatyano-Muradovich",
+			"email": "arsen@mirzaev.sexy"
+		}
+	],
+	"minimum-stability": "stable",
+	"config": {
+		"allow-plugins": {
+			"php-http/discovery": true
+		}
+	},
+	"require": {
+		"flow-php/etl-adapter-google-sheet": "1.x@dev",
+		"webmozart/assert": "^1.11",
+		"triagens/arangodb": "^3.8",
+		"mirzaev/arangodb": "^1.0.0"
+	}
 }
