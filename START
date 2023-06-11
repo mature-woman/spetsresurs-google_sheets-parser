@@ -1,2 +1,2 @@
-sudo -u www-data php mirzaev/google_sheets/parser/system/public/synchronization.php
+sudo -u www-data php mirzaev/google_sheets/parser/system/public/*.php
 
