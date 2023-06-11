@@ -1,5 +1,5 @@
-# Viber chat-robot
+# Google Sheets parser
 
-Sending requests from [mirzaev/project-spetsresurs-google_sheets-parser](https://git.mirzaev.sexy/mirzaev/project-spetsresurs-google_sheets-parser) to [mirzaev/arangodb](https://git.mirzaev.sexy/mirzaev/arangodb) and vice versa
+Synchronizes Google Sheets with ArangoDB
 
 😼 Developed in 1 days for 100000 rubles ($1200)
