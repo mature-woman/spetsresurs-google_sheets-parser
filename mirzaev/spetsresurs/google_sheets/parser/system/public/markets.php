@@ -25,7 +25,7 @@ use Google\Client,
 	Google\Service\Sheets,
 	Google\Service\Sheets\ValueRange;
 
-require __DIR__ . '/../../../../../vendor/autoload.php';
+require __DIR__ . '/../../../../../../vendor/autoload.php';
 
 $arangodb = new connection(require '../settings/arangodb.php');
 
