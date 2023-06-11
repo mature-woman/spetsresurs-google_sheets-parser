@@ -1,10 +1,10 @@
 {
-	"name": "mirzaev/google_sheets-parser",
+	"name": "mirzaev/spetsresurs-google_sheets-parser",
 	"type": "robot",
 	"license": "WTFPL",
 	"autoload": {
 		"psr-4": {
-			"mirzaev\\google_sheets\\parser\\": "mirzaev/google_sheets/parser/system/"
+			"mirzaev\\spetsresurs\\google_sheets\\parser\\": "mirzaev/spetsresurs/google_sheets/parser/system/"
 		}
 	},
 	"authors": [
