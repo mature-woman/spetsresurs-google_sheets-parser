@@ -21,7 +21,6 @@
 	},
 	"require": {
 		"flow-php/etl-adapter-google-sheet": "1.x@dev",
-		"webmozart/assert": "^1.11",
 		"triagens/arangodb": "^3.8",
 		"mirzaev/arangodb": "^1.0.0"
 	}
