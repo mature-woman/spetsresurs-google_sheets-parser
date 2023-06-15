@@ -32,16 +32,18 @@ $arangodb = new connection(require '../settings/arangodb.php');
 function generateLabel(string $name): string
 {
 	return match ($name) {
-		'_id', 'ID'  => '_id',
+		'created_in_sheets', 'Создано' => 'created_in_sheets',
+		'date', 'Дата' => 'date',
 		'market', 'Магазин' => 'market',
 		'worker', 'Сотрудник' => 'worker',
 		'work', 'Работа' => 'work',
-		'date', 'Дата' => 'date',
 		'start', 'Начало' => 'start',
 		'end', 'Конец' => 'end',
+		'hours', 'Часы' => 'hours',
 		'confirmed', 'Подтверждено' => 'confirmed',
 		'commentary', 'Комментарий' => 'commentary',
 		'response', 'Ответ' => 'response',
+		'_id', 'ID'  => '_id',
 		default => throw new exception("Неизвестный столбец: $name")
 	};
 }
@@ -49,16 +51,18 @@ function generateLabel(string $name): string
 function degenerateLabel(string $name): string
 {
 	return match ($name) {
-		'ID', '_id' => 'ID',
+		'Создано', 'created_in_sheets' => 'Создано',
+		'Дата', 'date' => 'Дата',
 		'Магазин', 'market' => 'Магазин',
 		'Сотрудник', 'worker' => 'Сотрудник',
 		'Работа', 'work' => 'Работа',
-		'Дата', 'date' => 'Дата',
 		'Начало', 'start' => 'Начало',
 		'Конец', 'end' => 'Конец',
+		'Часы', 'hours' => 'Часы',
 		'Подтверждено', 'confirmed' => 'Подтверждено',
 		'Комментарий', 'commentary' => 'Комментарий',
 		'Ответ', 'response' => 'Ответ',
+		'ID', '_id' => 'ID',
 		default => throw new exception("Неизвестный столбец: $name")
 	};
 }
@@ -84,18 +88,22 @@ function sync(Row &$row): void
 			// Найдена запись работы (строки) в базе данных
 
 			// Очистка перед записью в таблицу
-			$new = array_diff_key($work->getAll(), ['_key' => true, 'created' => true]);
+			$new = array_diff_key($work->getAll(), ['_key' => true, 'created' => true]) + ['_id' => $work->getId()];
+			
+			$buffer = $new;
 
 			// Инициализация выбранного сотрудника
 			if (collection::init($arangodb->session, 'readinesses', true)	&& collection::init($arangodb->session, 'workers'))
-				$new = ['worker' => collection::search(
+				$new = array_splice($new, 0, 2) + ['worker' => collection::search(
 					$arangodb->session,
 					sprintf(
 						"FOR d IN workers LET e = (FOR e IN readinesses FILTER e._to == '%s' RETURN e._from)[0] FILTER d._id == e RETURN d",
 						$_row['_id']
 					)
-				)->id ?? ''] + $new;
+				)->id ?? ''] + array_slice($buffer, 2);
 			else throw new exception('Не удалось инициализировать коллекции');
+
+			$buffer = $new;
 
 			// Инициализация магазина
 			if (collection::init($arangodb->session, 'requests', true)	&& collection::init($arangodb->session, 'markets'))
@@ -105,12 +113,12 @@ function sync(Row &$row): void
 						"FOR d IN markets LET e = (FOR e IN requests FILTER e._to == '%s' RETURN e._from)[0] FILTER d._id == e RETURN d",
 						$_row['_id']
 					)
-				)) $new = ['market' => $market->id] + $new;
+				)) $new = array_splice($new, 0, 2) + ['market' => $market->id] + array_splice($buffer, 2);
 				else throw new exception('Не удалось найти магазин');
 			else throw new exception('Не удалось инициализировать коллекции');
 
-			// Запись идентификатора только что созданной записи в базе данных для записи в таблицу
-			$new = ['_id' => $work->getId()] + $new;
+			// Замена NULL на пустую строку
+			foreach ($new as $key => &$value) if ($value === null) $value = '';
 
 			// Реинициализация строки с новыми данными по ссылке (приоритет из базы данных)
 			if ($_row !== $new) $row = $row->set((new Flow())->read(From::array([init($new, true)]))->fetch(1)[0]->get('row'));
@@ -154,8 +162,14 @@ function sync(Row &$row): void
 				else throw new exception('Не удалось создать готовность сотрудника');
 			}
 
+			// Запись идентификатора только что созданной инстанции документа в базе данных
+			$_row['_id'] = $work->getId();
+
+			// Замена NULL на пустую строку
+			foreach ($_row as $key => &$value) if ($value === null) $value = '';
+
 			// Реинициализация строки с новыми данными по ссылке (приоритет из базы данных)
-			$row = $row->set((new Flow())->read(From::array([init(['_id' => $work->getId()] + $_row, true)]))->fetch(1)[0]->get('row'));
+			$row = $row->set((new Flow())->read(From::array([init($_row, true)]))->fetch(1)[0]->get('row'));
 		} else return;
 	else throw new exception('Не удалось инициализировать коллекцию');
 }
@@ -171,7 +185,7 @@ $client->setAuthConfig($settings);
 foreach ($sheets as $sheet) {
 	$sheets = new Sheets($client);
 
-	$rows = (new Flow())->read(new GoogleSheetExtractor($sheets, $document, new Columns($sheet, 'A', 'J'), true, 1000, 'row'));
+	$rows = (new Flow())->read(new GoogleSheetExtractor($sheets, $document, new Columns($sheet, 'A', 'L'), true, 1000, 'row'));
 
 	$i = 1;
 
@@ -182,7 +196,7 @@ foreach ($sheets as $sheet) {
 		if ($buffer !== $row)
 			$sheets->spreadsheets_values->update(
 				$document,
-				"$sheet!A$i:J$i",
+				"$sheet!A$i:L$i",
 				new ValueRange(['values' => [array_values($row->entries()->toArray()['row'])]]),
 				['valueInputOption' => 'USER_ENTERED']
 			);
