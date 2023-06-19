@@ -98,7 +98,6 @@ function filterWorker(?string $worker): string
 	return match ($worker) {
 		'', 0, 00, 000, 0000, 00000, 000000, 0000000, 00000000, 000000000, 0000000000 => '',
 		default => (function () use ($worker, $arangodb) {
-			var_dump($worker);
 			if (
 				collection::init($arangodb->session, 'workers')
 				&& collection::search(
@@ -316,18 +315,18 @@ function sync(int $_i, Row &$row, ?array $raw = null): void
 						'imported_start' => ['number' => $_row['imported_start'] ?? '', 'converted' => $raw[5] ?? ''],
 						'imported_end' => ['number' => $_row['imported_end'] ?? '', 'converted' => $raw[6] ?? ''],
 						'imported_hours' => $_row['imported_hours'] ?? '',
-						'created_in_sheets' => ['number' => $_row['created_in_sheets'] ?? '', 'converted' => $raw[8] ?? ''],
-						'date' => ['number' => $_row['date'] ?? '', 'converted' => $raw[9] ?? ''],
-						'market' => $_row['market'] ?? '',
-						'type' => $_row['type'] ?? '',
-						'address' => $_row['address'] ?? '',
-						'worker' => $_row['worker'] ?? '',
-						'name' => $_row['name'] ?? '',
-						'work' => $_row['work'] ?? '',
-						'start' => ['number' => $_row['start'] ?? '', 'converted' => $raw[16] ?? ''],
-						'end' => ['number' => $_row['end'] ?? '', 'converted' => $raw[17] ?? ''],
-						'hours' => $_row['hours'] ?? '',
-						'tax' => $_row['tax'] ?? '',
+						'created_in_sheets' => ['number' => $_row['imported_created_in_sheets'] ?? '', 'converted' => $raw[0] ?? ''],
+						'date' => ['number' => $_row['imported_date'] ?? '', 'converted' => $raw[1] ?? ''],
+						'market' => $_row['imported_market'] ?? '',
+						'type' => empty($_row['type']) ? "=ЕСЛИ(СОВПАД(I$_i;\"\");\"\"; IFNA(ВПР(K$_i;part_import_KRSK!\$B\$2:\$E\$15603;2;);\"Нет в базе\"))" : $_row['type'],
+						'address' => empty($_row['address']) ? "=ЕСЛИ(СОВПАД(I$_i;\"\");\"\"; IFNA(ВПР(K$_i;part_import_KRSK!\$B\$2:\$E\$15603;4;);\"Нет в базе\"))" : $_row['address'],
+						'worker' => $_row['imported_worker'] ?? '',
+						'name' => empty($_row['name']) ? "=ЕСЛИ(СОВПАД(\$I$_i;\"\");\"\"; ЕСЛИ( НЕ(СОВПАД(IFNA(ВПР(\$N$_i;part_import_KRSK!\$R$2:\$R$4999;1;);\"\");\$N$_i)); ЕСЛИ((СОВПАД(IFNA(ВПР(\$N$_i;part_import_KRSK!\$I\$2:\$L\$4999;4);\"\");\"\")); IFNA(ВПР(\$N$_i;part_import_KRSK!\$I\$2:\$J\$4999;2;); \"Сотрудник не назначен\"); \"УВОЛЕН (В списке работающих)\"); \"УВОЛЕН (В списке уволенных)\"))" : $_row['name'],
+						'work' => $_row['imported_work'] ?? '',
+						'start' => ['number' => $_row['imported_start'] ?? '', 'converted' => $raw[5] ?? ''],
+						'end' => ['number' => $_row['imported_end'] ?? '', 'converted' => $raw[6] ?? ''],
+						'hours' => $_row['imported_hours'] ?? '',
+						'tax' => empty($_row['tax']) ? "=ЕСЛИ(СОВПАД(\$I$_i;\"\");\"\"; IFNA(ВПР(\$N$_i;part_import_KRSK!\$I\$2:\$K\$5000;3;); IFNA(ВПР(\$N$_i;part_import_KRSK!\$R\$2:\$T\$5000;3;);\"000000000000\")))" : $_row['tax'],
 						'confirmed' => $_row['confirmed'] ?? '',
 						'commentary' => $_row['commentary'] ?? '',
 						'response' => $_row['response'] ?? '',
