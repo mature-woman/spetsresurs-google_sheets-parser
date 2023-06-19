@@ -27,7 +27,7 @@ use Google\Client,
 
 require __DIR__ . '/../../../../../../vendor/autoload.php';
 
-$arangodb = new connection(require '../settings/arangodb.php');
+$arangodb = new connection(require __DIR__ . '/../settings/arangodb.php');
 
 function generateLabel(string $name): string
 {
@@ -77,9 +77,9 @@ function sync(Row &$row, string $city = 'Красноярск'): void
 		else throw new exception('Не удалось инициализировать коллекцию');
 }
 
-$settings = json_decode(require('../settings/markets/google.php'), true);
-$document = require('../settings/markets/document.php');
-$sheets = require('../settings/markets/sheets.php');
+$settings = json_decode(require(__DIR__ . '/../settings/markets/google.php'), true);
+$document = require(__DIR__ . '/../settings/markets/document.php');
+$sheets = require(__DIR__ . '/../settings/markets/sheets.php');
 
 $client = new Client();
 $client->setScopes(Sheets::SPREADSHEETS);
