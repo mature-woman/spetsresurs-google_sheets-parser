@@ -91,6 +91,29 @@ function degenerateLabel(string $name): string
 	};
 }
 
+function filterWorker(?string $worker): string
+{
+	global $arangodb;
+
+	return match ($worker) {
+		'', 0, 00, 000, 0000, 00000, 000000, 0000000, 00000000, 000000000, 0000000000 => '',
+		default => (function () use ($worker, $arangodb) {
+			var_dump($worker);
+			if (
+				collection::init($arangodb->session, 'workers')
+				&& collection::search(
+					$arangodb->session,
+					sprintf(
+						"FOR d IN workers FILTER d.id == d RETURN d",
+						$worker
+					)
+				)
+			) return $worker;
+			else return '';
+		})()
+	};
+}
+
 function init(array $row, bool $reverse = false): array
 {
 	$buffer = [];
@@ -101,7 +124,7 @@ function init(array $row, bool $reverse = false): array
 }
 
 
-function sync(Row &$row, ?array $raw = null): void
+function sync(int $_i, Row &$row, ?array $raw = null): void
 {
 	global $arangodb;
 
@@ -357,15 +380,15 @@ function sync(Row &$row, ?array $raw = null): void
 				'created_in_sheets' => $raw[0] ?? '',
 				'date' => $raw[1] ?? '',
 				'market' => $_row['imported_market'] ?? '',
-				'type' => $_row['type'] ?? '',
-				'address' => $_row['address'] ?? '',
-				'worker' => $_row['imported_worker'] ?? '',
-				'name' => $_row['name'] ?? '',
+				'type' => empty($_row['type']) ? "=ЕСЛИ(СОВПАД(I$_i;\"\");\"\"; IFNA(ВПР(K$_i;part_import_KRSK!\$B\$2:\$E\$15603;2;);\"Нет в базе\"))" : $_row['type'],
+				'address' => empty($_row['address']) ? "=ЕСЛИ(СОВПАД(I$_i;\"\");\"\"; IFNA(ВПР(K$_i;part_import_KRSK!\$B\$2:\$E\$15603;4;);\"Нет в базе\"))" : $_row['address'],
+				'worker' => filterWorker($_row['imported_worker']),
+				'name' => empty($_row['name']) ? "=ЕСЛИ(СОВПАД(\$I$_i;\"\");\"\"; ЕСЛИ( НЕ(СОВПАД(IFNA(ВПР(\$N$_i;part_import_KRSK!\$R$2:\$R$4999;1;);\"\");\$N$_i)); ЕСЛИ((СОВПАД(IFNA(ВПР(\$N$_i;part_import_KRSK!\$I\$2:\$L\$4999;4);\"\");\"\")); IFNA(ВПР(\$N$_i;part_import_KRSK!\$I\$2:\$J\$4999;2;); \"Сотрудник не назначен\"); \"УВОЛЕН (В списке работающих)\"); \"УВОЛЕН (В списке уволенных)\"))" : $_row['name'],
 				'work' => $_row['imported_work'] ?? '',
 				'start' => $raw[5] ?? '',
 				'end' => $raw[6] ?? '',
 				'hours' => $_row['imported_hours'] ?? '',
-				'tax' => $_row['tax'] ?? '',
+				'tax' => empty($_row['tax']) ? "=ЕСЛИ(СОВПАД(\$I$_i;\"\");\"\"; IFNA(ВПР(\$N$_i;part_import_KRSK!\$I\$2:\$K\$5000;3;); IFNA(ВПР(\$N$_i;part_import_KRSK!\$R\$2:\$T\$5000;3;);\"000000000000\")))" : $_row['tax'],
 				'confirmed' => $_row['confirmed'] ?? '',
 				'commentary' => $_row['commentary'] ?? '',
 				'response' => $_row['response'] ?? '',
@@ -405,7 +428,7 @@ foreach ($sheets as $sheet) {
 		$buffer = $row;
 
 		// Синхронизация с базой данных
-		sync($row, $sheets->spreadsheets_values->get($document, "$sheet!A$i:X$i")[0] ?? null);
+		sync($i, $row, $sheets->spreadsheets_values->get($document, "$sheet!A$i:X$i")[0] ?? null);
 
 		// Запись изменений строки в Google Sheet
 		if ($buffer !== $row)
