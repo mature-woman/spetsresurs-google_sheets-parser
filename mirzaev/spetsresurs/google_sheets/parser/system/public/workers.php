@@ -32,23 +32,23 @@ $arangodb = new connection(require __DIR__ . '/../settings/arangodb.php');
 function generateLabel(string $name): string
 {
 	return match ($name) {
-		'id', 'ID', '1', '11', '111', '1111', '11111', 'index', 'Index', 'код', 'Код', 'ключ', 'Ключ', 'айди', 'Айди', 'идентификатор', 'Идентификатор' => 'id',
-		'name', 'ФИО', 'фио', 'ф.и.о.', 'ф. и. о.', 'Ф.И.О.', 'Ф. И. О.' => 'name',
-		'phone', 'Номер', 'номер', 'телефон', 'Телефон' => 'phone',
-		'birth', 'Дата рождения', 'дата рождения', 'Год рождения', 'год рождения', 'Год', 'год', 'День рождения', 'день рождения' => 'birth',
-		'address', 'Адрес регистрации', 'адрес регистрации', 'Адрес', 'адрес', 'Регистрация', 'регистрация' => 'address',
-		'commentary', 'Комментарий', 'ПРИМЕЧАНИЕ', 'Примечание', 'примечание' => 'commentary',
-		'activity', 'Работа', 'работа', 'Вид Работы', 'Вид работы', 'вид работы' => 'activity',
-		'passport', 'Паспорт', 'паспорт', 'серия и номер паспорта', 'Серия и номер паспорта' => 'passport',
-		'issued', 'Выдан', 'выдан' => 'issued',
-		'department', 'Код подразделения', 'код подразделения', 'Подразделение', 'подразделение' => 'department',
-		'hiring', 'Дата присоединения', 'Когда устроили', 'когда устроили' => 'hiring',
+		'id', 'ID' => 'id',
+		'name', 'ФИО' => 'name',
+		'phone', 'Номер' => 'phone',
+		'birth', 'Дата рождения' => 'birth',
+		'address', 'Регистрация' => 'address',
+		'commentary', 'Комментарий' => 'commentary',
+		'activity', 'Работа' => 'activity',
+		'passport', 'Паспорт' => 'passport',
+		'issued', 'Выдан' => 'issued',
+		'department', 'Подразделение' => 'department',
+		'hiring', 'Нанят' => 'hiring',
 		'district', 'Район', 'район' => 'district',
 		'requisites', 'Реквизиты', 'реквизиты' => 'requisites',
-		'fired', 'Дата увольнения', 'дата увольнения', 'Уволен', 'уволен', 'Увольнение', 'увольнение' => 'fired',
+		'fired', 'Уволен' => 'fired',
 		'payment', 'Оплата', 'оплата' => 'payment',
 		'tax', 'ИНН', 'инн' => 'tax',
-		default => throw new exception("Неизвестный столбец: $name")
+		default => $name
 	};
 }
 
@@ -59,20 +59,32 @@ function degenerateLabel(string $name): string
 		'ФИО', 'name' => 'ФИО',
 		'Номер', 'phone' => 'Номер',
 		'Дата рождения', 'birth' => 'Дата рождения',
-		'Адрес регистрации', 'address' => 'Адрес регистрации',
+		'Регистрация', 'address' => 'Регистрация',
 		'Комментарий', 'commentary' => 'Комментарий',
 		'Работа', 'activity' => 'Работа',
 		'Паспорт', 'passport' => 'Паспорт',
 		'Выдан', 'issued' => 'Выдан',
-		'Код подразделения', 'department' => 'Код подразделения',
-		'Дата присоединения', 'hiring' => 'Дата присоединения',
+		'Подразделение', 'department' => 'Подразделение',
+		'Нанят', 'hiring' => 'Нанят',
 		'Район', 'district' => 'Район',
 		'Реквизиты', 'requisites' => 'Реквизиты',
-		'Дата увольнения', 'fired' => 'Дата увольнения',
+		'Уволен', 'fired' => 'Дата увольнения',
 		'Оплата', 'payment' => 'Оплата',
 		'ИНН', 'tax' => 'ИНН',
-		default => throw new exception("Неизвестный столбец: $name")
+		default => $name
 	};
+}
+
+function convertNumber(string $number): string
+{
+
+	// Очистка всего кроме цифр, а потом поиск 10 первых чисел (без восьмёрки)
+	preg_match('/^8(\d{10})/', preg_replace("/[^\d]/", "", $number), $matches);
+
+	// Инициализация номера
+	$number = isset($matches[1]) ? 7 . $matches[1] : $number;
+
+	return $number;
 }
 
 function init(array $row, bool $reverse = false): array
@@ -140,23 +152,120 @@ function sync(Row &$row, string $city = 'Красноярск'): void
 {
 	global $arangodb;
 
-	$_row = init($row->entries()->toArray()['row']);
+	// Инициализация строки в Google Sheet
+	$_row = init($row->toArray()['row']);
 
-	if ($_row['id'] !== null)
-		if (collection::init($arangodb->session, 'workers'))
-			if ($worker = collection::search($arangodb->session, sprintf("FOR d IN workers FILTER d.id == '%s' RETURN d", $_row['id']))
-				?? collection::search($arangodb->session, sprintf("FOR d IN workers FILTER d._id == '%s' RETURN d", document::write($arangodb->session, 'workers', $_row + ['city' => $city])))
-			) {
-				// Инициализирован работник
+	if (collection::init($arangodb->session, 'workers'))
+		if (!empty($_row['id']) && $worker = collection::search($arangodb->session, sprintf("FOR d IN workers FILTER d.id == '%s' RETURN d", $_row['id']))) {
+			// Найдена запись работника (строки) в базе данных и включен режим перезаписи (приоритет - google sheets)
 
-				// Реинициализация строки с актуальными записями (приоритет у базы данных)
-				if ($_row !== $new = array_diff_key($worker->getAll(), ['_key' => true, 'created' => true, 'city' => true]))
-					$row = $row->set((new Flow())->read(From::array([init($new, true)]))->fetch(1)[0]->get('row'));
+			if ($worker->transfer_to_sheets) {
+				// Запрошен форсированный перенос данных из базы данных в таблицу
 
-				// Подключение к чат-роботам
-				connectAll($worker);
-			} else throw new exception('Не удалось создать или найти созданного работника');
-		else throw new exception('Не удалось инициализировать коллекцию');
+				// Инициализация данных для записи в таблицу
+				$new = [
+					'id' => $worker->id ?? '',
+					'name' => $worker->name ?? '',
+					'phone' => convertNumber($worker->phone ?? ''),
+					'birth' => $worker->birth ?? '',
+					'address' => $worker->address ?? '',
+					'commentary' => $worker->commentary ?? '',
+					'activity' => $worker->activity ?? '',
+					'passport' => $worker->passport ?? '',
+					'issued' => $worker->issued ?? '',
+					'department' => $worker->department ?? '',
+					'hiring' => $worker->hiring ?? '',
+					'district' => $worker->district ?? '',
+					'requisites' => $worker->requisites ?? '',
+					'fired' => $worker->fired ?? '',
+					'payment' => $worker->payment ?? '',
+					'tax' => $worker->tax ?? '',
+				];
+
+				// Замена NULL на пустую строку
+				foreach ($new as $key => &$value) if ($value === null) $value = '';
+
+				// Реинициализация строки с новыми данными по ссылке (приоритет из базы данных)
+				if ($_row !== $new) $row = $row->set((new Flow())->read(From::array([init($new, true)]))->fetch(1)[0]->get('row'));
+
+				// Деактивация форсированного трансфера
+				$worker->transfer_to_sheets = false;
+			} else {
+				// Перенос изменений из Google Sheet в инстанцию документа в базе данных
+
+				// Реинициализация данных в инстанции документа в базе данных с данными из Google Sheet
+				foreach ($worker->getAll() as $key => $value) {
+					// Перебор всех записанных значений в инстанции документа в базе данных
+
+					// Конвертация
+					$worker->{$key} = $_row[$key] ?? $value;
+				}
+			}
+
+			// Обновление инстанции документа в базе данных
+			document::update($arangodb->session, $worker);
+
+			// Подключение к чат-роботам
+			connectAll($worker);
+		} else	if (
+			!empty($_row['id'])
+			&& !empty($_row['phone'])
+			&& $worker = collection::search(
+				$arangodb->session,
+				sprintf(
+					"FOR d IN workers FILTER d._id == '%s' RETURN d",
+					document::write($arangodb->session,	'workers', [
+						'id' => $_row['id'] ?? '',
+						'name' => $_row['name'] ?? '',
+						'phone' => convertNumber($_row['phone'] ?? ''),
+						'birth' => $_row['birth'] ?? '',
+						'address' => $_row['address'] ?? '',
+						'commentary' => $_row['commentary'] ?? '',
+						'activity' => $_row['activity'] ?? '',
+						'passport' => $_row['passport'] ?? '',
+						'issued' => $_row['issued'] ?? '',
+						'department' => $_row['department'] ?? '',
+						'hiring' => $_row['hiring'] ?? '',
+						'district' => $_row['district'] ?? '',
+						'requisites' => $_row['requisites'] ?? '',
+						'fired' => $_row['fired'] ?? '',
+						'payment' => $_row['payment'] ?? '',
+						'tax' => $_row['tax'] ?? '',
+						'city' => $city,
+						'transfer_to_sheets' => false
+					])
+				)
+			)
+		) {
+			// Не найдена запись работника (строки) в базе данных и была создана
+
+			// Инициализация номера
+			$number = convertNumber($_row['phone'] ?? '');
+
+			// Реинициализация строки с новыми данными по ссылке (приоритет из Google Sheets)
+			$row = $row->set((new Flow())->read(From::array([init([
+				'id' => $_row['id'] ?? '',
+				'name' => $_row['name'] ?? '',
+				'phone' =>  "=HYPERLINK(\"https://call.ctrlq.org/+$number\"; \"$number\")",
+				'birth' => $_row['birth'] ?? '',
+				'address' => $_row['address'] ?? '',
+				'commentary' => $_row['commentary'] ?? '',
+				'activity' => $_row['activity'] ?? '',
+				'passport' => $_row['passport'] ?? '',
+				'issued' => $_row['issued'] ?? '',
+				'department' => $_row['department'] ?? '',
+				'hiring' => $_row['hiring'] ?? '',
+				'district' => $_row['district'] ?? '',
+				'requisites' => $_row['requisites'] ?? '',
+				'fired' => $_row['fired'] ?? '',
+				'payment' => $_row['payment'] ?? '',
+				'tax' => $_row['tax'] ?? '',
+			], true)]))->fetch(1)[0]->get('row'));
+
+			// Подключение к чат-роботам
+			connectAll($worker);
+		} else return;
+	else throw new exception('Не удалось инициализировать коллекцию');
 }
 
 $settings = json_decode(require(__DIR__ . '/../settings/workers/google.php'), true);

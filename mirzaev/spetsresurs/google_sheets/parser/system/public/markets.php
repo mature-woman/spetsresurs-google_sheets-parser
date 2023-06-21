@@ -36,7 +36,7 @@ function generateLabel(string $name): string
 		'type', 'ТИП', 'Тип', 'тип' => 'type',
 		'director', 'ДИРЕКТОР', 'Директор', 'директор' => 'director',
 		'address', 'АДРЕС', 'Адрес', 'адрес' => 'address',
-		default => throw new exception("Неизвестный столбец: $name")
+		default => $name
 	};
 }
 
@@ -47,7 +47,7 @@ function degenerateLabel(string $name): string
 		'ТИП', 'type' => 'ТИП',
 		'ДИРЕКТОР', 'director' => 'ДИРЕКТОР',
 		'АДРЕС', 'address' => 'АДРЕС',
-		default => throw new exception("Неизвестный столбец: $name")
+		default => $name
 	};
 }
 
@@ -65,16 +65,74 @@ function sync(Row &$row, string $city = 'Красноярск'): void
 {
 	global $arangodb;
 
-	$_row = init($row->entries()->toArray()['row']);
+	// Инициализация строки в Google Sheet
+	$_row = init($row->toArray()['row']);
 
-	if ($_row['id'] !== null)
-		if (collection::init($arangodb->session, 'markets'))
-			if ($market = collection::search($arangodb->session, sprintf("FOR d IN markets FILTER d.id == '%s' RETURN d", $_row['id'])))
-				if ($_row === $new = array_diff_key($market->getAll(), ['_key' => true, 'created' => true, 'city' => true]));
-				else $row = $row->set((new Flow())->read(From::array([init($new, true)]))->fetch(1)[0]->get('row'));
-			else if (collection::search($arangodb->session, sprintf("FOR d IN markets FILTER d._id == '%s' RETURN d", document::write($arangodb->session, 'markets', $_row + ['city' => $city]))));
-			else throw new exception('Не удалось создать или найти созданного магазина');
-		else throw new exception('Не удалось инициализировать коллекцию');
+	if (collection::init($arangodb->session, 'markets'))
+		if (!empty($_row['id']) && $market = collection::search($arangodb->session, sprintf("FOR d IN markets FILTER d.id == '%s' RETURN d", $_row['id']))) {
+			// Найдена запись магазина (строки) в базе данных и включен режим перезаписи (приоритет - google sheets)
+
+			if ($market->transfer_to_sheets) {
+				// Запрошен форсированный перенос данных из базы данных в таблицу
+
+				// Инициализация данных для записи в таблицу
+				$new = [
+					'id' => $market->id ?? '',
+					'type' => $market->type ?? '',
+					'director' => $market->director ?? '',
+					'address' => $market->address ?? '',
+				];
+
+				// Замена NULL на пустую строку
+				foreach ($new as $key => &$value) if ($value === null) $value = '';
+
+				// Реинициализация строки с новыми данными по ссылке (приоритет из базы данных)
+				if ($_row !== $new) $row = $row->set((new Flow())->read(From::array([init($new, true)]))->fetch(1)[0]->get('row'));
+
+				// Деактивация форсированного трансфера
+				$market->transfer_to_sheets = false;
+			} else {
+				// Перенос изменений из Google Sheet в инстанцию документа в базе данных
+
+				// Реинициализация данных в инстанции документа в базе данных с данными из Google Sheet
+				foreach ($market->getAll() as $key => $value) {
+					// Перебор всех записанных значений в инстанции документа в базе данных
+
+					// Конвертация
+					$market->{$key} = $_row[$key] ?? $value;
+				}
+			}
+
+			// Обновление инстанции документа в базе данных
+			document::update($arangodb->session, $market);
+		} else	if (
+			!empty($_row['id'])
+			&& $market = collection::search(
+				$arangodb->session,
+				sprintf(
+					"FOR d IN markets FILTER d._id == '%s' RETURN d",
+					document::write($arangodb->session,	'markets', [
+						'id' => $_row['id'] ?? '',
+						'type' => $_row['type'] ?? '',
+						'director' => $_row['director'] ?? '',
+						'address' => $_row['address'] ?? '',
+						'city' => $city,
+						'transfer_to_sheets' => false
+					])
+				)
+			)
+		) {
+			// Не найдена запись магазина (строки) в базе данных и была создана
+
+			/* // Реинициализация строки с новыми данными по ссылке (приоритет из Google Sheets)
+			$row = $row->set((new Flow())->read(From::array([init([
+				'id' => $_row['id'] ?? '',
+				'type' => $_row['type'] ?? '',
+				'director' => $_row['director'] ?? '',
+				'address' => $_row['address'] ?? '',
+			], true)]))->fetch(1)[0]->get('row')); */
+		} else return;
+	else throw new exception('Не удалось инициализировать коллекцию');
 }
 
 $settings = json_decode(require(__DIR__ . '/../settings/markets/google.php'), true);

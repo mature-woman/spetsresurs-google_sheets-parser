@@ -96,14 +96,14 @@ function filterWorker(?string $worker): string
 	global $arangodb;
 
 	return match ($worker) {
-		'', 0, 00, 000, 0000, 00000, 000000, 0000000, 00000000, 000000000, 0000000000 => '',
+		'', 'Отмена', 'отмена', 0, 00, 000, 0000, 00000, 000000, 0000000, 00000000, 000000000, 0000000000 => '',
 		default => (function () use ($worker, $arangodb) {
 			if (
 				collection::init($arangodb->session, 'workers')
 				&& collection::search(
 					$arangodb->session,
 					sprintf(
-						"FOR d IN workers FILTER d.id == d RETURN d",
+						"FOR d IN workers FILTER d.id == %s RETURN d",
 						$worker
 					)
 				)
@@ -127,16 +127,17 @@ function sync(int $_i, Row &$row, ?array $raw = null): void
 {
 	global $arangodb;
 
+	// Инициализация строки в Google Sheet
 	$_row = init($row->toArray()['row']);
 
 	if (collection::init($arangodb->session, 'works'))
 		if (!empty($_row['_id']) && $work = collection::search($arangodb->session, sprintf("FOR d IN works FILTER d._id == '%s' RETURN d", $_row['_id']))) {
-			// Найдена запись работы (строки) в базе данных и включен режим перезаписи (приоритет - google sheets)
+			// Найдена запись работы (строки) в базе данных 
 
 			if ($work->transfer_to_sheets) {
 				// Запрошен форсированный перенос данных из базы данных в таблицу
 
-				// Очистка перед записью в таблицу
+				// Инициализация данных для записи в таблицу
 				$new = [
 					'imported_created_in_sheets' => $work->imported_created_in_sheets['converted'],
 					'imported_date' => $work->imported_date['converted'],
@@ -164,7 +165,7 @@ function sync(int $_i, Row &$row, ?array $raw = null): void
 					'_id' => $work->getId(),
 				];
 
-				// Инициализация выбранного сотрудника
+				// Инициализация сотрудника
 				if (collection::init($arangodb->session, 'readinesses', true)	&& collection::init($arangodb->session, 'workers'))
 					$new['worker'] = collection::search(
 						$arangodb->session,
@@ -366,7 +367,7 @@ function sync(int $_i, Row &$row, ?array $raw = null): void
 			// Запись идентификатора только что созданной инстанции документа в базе данных
 			$_row['_id'] = $work->getId();
 
-			// Реинициализация строки с новыми данными по ссылке (приоритет из базы данных)
+			// Реинициализация строки с новыми данными по ссылке (приоритет из Google Sheets)
 			$row = $row->set((new Flow())->read(From::array([init([
 				'imported_created_in_sheets' => $raw[0] ?? '',
 				'imported_date' => $raw[1] ?? '',
