@@ -106,8 +106,7 @@ function sync(Row &$row, string $city = 'Красноярск'): void
 			// Обновление инстанции документа в базе данных
 			document::update($arangodb->session, $market);
 		} else	if (
-			!empty($_row['id'])
-			&& $market = collection::search(
+			$market = collection::search(
 				$arangodb->session,
 				sprintf(
 					"FOR d IN markets FILTER d._id == '%s' RETURN d",
@@ -148,16 +147,20 @@ foreach ($sheets as $sheet) {
 	$rows = (new Flow())->read(new GoogleSheetExtractor($api, $document, new Columns($sheet, 'A', 'D'), true, 1000, 'row'));
 
 	$i = 1;
-	foreach ($rows->fetch(100) as $row) {
+	foreach ($rows->fetch(3000) as $row) {
 		++$i;
 		$buffer = $row;
 		sync($row, $sheet);
-		if ($buffer !== $row)
+		if ($buffer !== $row) {
 			$api->spreadsheets_values->update(
 				$document,
 				"$sheet!A$i:D$i",
 				new ValueRange(['values' => [array_values($row->entries()->toArray()['row'])]]),
 				['valueInputOption' => 'USER_ENTERED']
 			);
+
+			// Ожидание для того, чтобы снизить шанс блокировки от Google
+			sleep(3);
+		}
 	}
 }

@@ -292,6 +292,9 @@ foreach ($sheets as $sheet) {
 				new ValueRange(['values' => [array_values($row->entries()->toArray()['row'])]]),
 				['valueInputOption' => 'USER_ENTERED']
 			);
+
+			// Ожидание для того, чтобы снизить шанс блокировки от Google
+			sleep(3);
 		}
 	}
 }

@@ -95,7 +95,7 @@ function filterWorker(?string $worker): string
 {
 	global $arangodb;
 
-	return match ($worker) {
+	return match ((int) $worker) {
 		'', 'Отмена', 'отмена', 0, 00, 000, 0000, 00000, 000000, 0000000, 00000000, 000000000, 0000000000 => '',
 		default => (function () use ($worker, $arangodb) {
 			if (
@@ -103,7 +103,7 @@ function filterWorker(?string $worker): string
 				&& collection::search(
 					$arangodb->session,
 					sprintf(
-						"FOR d IN workers FILTER d.id == %s RETURN d",
+						"FOR d IN workers FILTER d.id == '%s' RETURN d",
 						$worker
 					)
 				)
@@ -129,6 +129,10 @@ function sync(int $_i, Row &$row, ?array $raw = null): void
 
 	// Инициализация строки в Google Sheet
 	$_row = init($row->toArray()['row']);
+
+	// Замена пустой строки на NULL (для логических операций)
+	foreach ($_row as $key => &$value) if ($value === '') $value = null;
+	foreach ($raw as $key => &$value) if ($value === '') $value = null;
 
 	if (collection::init($arangodb->session, 'works'))
 		if (!empty($_row['_id']) && $work = collection::search($arangodb->session, sprintf("FOR d IN works FILTER d._id == '%s' RETURN d", $_row['_id']))) {
@@ -300,9 +304,9 @@ function sync(int $_i, Row &$row, ?array $raw = null): void
 			// Обновление инстанции документа в базе данных
 			document::update($arangodb->session, $work);
 		} else	if (
-			!empty($_row['imported_market'])
+			(!empty($_row['imported_market']) || !empty($_row['market']))
 			&& collection::init($arangodb->session, 'requests', true)	&& collection::init($arangodb->session, 'markets')
-			&& ($market = collection::search($arangodb->session,	sprintf("FOR d IN markets FILTER d.id == '%s' RETURN d", $_row['imported_market'])))
+			&& ($market = collection::search($arangodb->session,	sprintf("FOR d IN markets FILTER d.id == '%s' RETURN d", $_row['imported_market'] ?? $_row['market'])))
 			&& $work = collection::search(
 				$arangodb->session,
 				sprintf(
@@ -377,17 +381,17 @@ function sync(int $_i, Row &$row, ?array $raw = null): void
 				'imported_start' => $raw[5] ?? '',
 				'imported_end' => $raw[6] ?? '',
 				'imported_hours' => $_row['imported_hours'] ?? '',
-				'created_in_sheets' => $raw[0] ?? '',
-				'date' => $raw[1] ?? '',
-				'market' => $_row['imported_market'] ?? '',
+				'created_in_sheets' => $raw[0] ?? $raw[8] ?? '',
+				'date' => $raw[1] ?? $raw[9] ?? '',
+				'market' => $_row['imported_market'] ?? $_row['market'] ?? '',
 				'type' => empty($_row['type']) ? "=ЕСЛИ(СОВПАД(I$_i;\"\");\"\"; IFNA(ВПР(K$_i;part_import_KRSK!\$B\$2:\$E\$15603;2;);\"Нет в базе\"))" : $_row['type'],
 				'address' => empty($_row['address']) ? "=ЕСЛИ(СОВПАД(I$_i;\"\");\"\"; IFNA(ВПР(K$_i;part_import_KRSK!\$B\$2:\$E\$15603;4;);\"Нет в базе\"))" : $_row['address'],
-				'worker' => filterWorker($_row['imported_worker']),
+				'worker' => filterWorker($_row['imported_worker'] ?? $_row['worker'] ?? ''),
 				'name' => empty($_row['name']) ? "=ЕСЛИ(СОВПАД(\$I$_i;\"\");\"\"; ЕСЛИ( НЕ(СОВПАД(IFNA(ВПР(\$N$_i;part_import_KRSK!\$R$2:\$R$4999;1;);\"\");\$N$_i)); ЕСЛИ((СОВПАД(IFNA(ВПР(\$N$_i;part_import_KRSK!\$I\$2:\$L\$4999;4);\"\");\"\")); IFNA(ВПР(\$N$_i;part_import_KRSK!\$I\$2:\$J\$4999;2;); \"Сотрудник не назначен\"); \"УВОЛЕН (В списке работающих)\"); \"УВОЛЕН (В списке уволенных)\"))" : $_row['name'],
-				'work' => $_row['imported_work'] ?? '',
-				'start' => $raw[5] ?? '',
-				'end' => $raw[6] ?? '',
-				'hours' => $_row['imported_hours'] ?? '',
+				'work' => $_row['imported_work'] ?? $_row['work'] ?? '',
+				'start' => $raw[5] ?? $raw[16] ?? '',
+				'end' => $raw[6] ?? $raw[17] ?? '',
+				'hours' => $_row['imported_hours'] ?? $_row['hours'] ?? '',
 				'tax' => empty($_row['tax']) ? "=ЕСЛИ(СОВПАД(\$I$_i;\"\");\"\"; IFNA(ВПР(\$N$_i;part_import_KRSK!\$I\$2:\$K\$5000;3;); IFNA(ВПР(\$N$_i;part_import_KRSK!\$R\$2:\$T\$5000;3;);\"000000000000\")))" : $_row['tax'],
 				'confirmed' => $_row['confirmed'] ?? '',
 				'commentary' => $_row['commentary'] ?? '',
@@ -431,12 +435,16 @@ foreach ($sheets as $sheet) {
 		sync($i, $row, $sheets->spreadsheets_values->get($document, "$sheet!A$i:X$i")[0] ?? null);
 
 		// Запись изменений строки в Google Sheet
-		if ($buffer !== $row)
+		if ($buffer !== $row) {
 			$sheets->spreadsheets_values->update(
 				$document,
 				"$sheet!A$i:X$i",
 				new ValueRange(['values' => [array_values($row->entries()->toArray()['row'])]]),
 				['valueInputOption' => 'USER_ENTERED']
 			);
+
+			// Ожидание для того, чтобы снизить шанс блокировки от Google
+			sleep(3);
+		}
 	}
 }
