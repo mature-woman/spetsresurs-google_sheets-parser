@@ -9,15 +9,10 @@ use mirzaev\arangodb\connection,
 use ArangoDBClient\Document as _document;
 
 // Фреймворк для Google Sheets
-use Flow\ETL\Adapter\GoogleSheet\GoogleSheetRange,
-	Flow\ETL\Adapter\GoogleSheet\GoogleSheetExtractor,
+use Flow\ETL\Adapter\GoogleSheet\GoogleSheetExtractor,
 	Flow\ETL\Adapter\GoogleSheet\Columns,
 	Flow\ETL\Flow,
-	Flow\ETL\Config,
-	Flow\ETL\FlowContext,
-	Flow\ETL\Row\Entry,
 	Flow\ETL\Row,
-	Flow\ETL\DSL\To,
 	Flow\ETL\DSL\From;
 
 // Фреймворк для Google API
@@ -148,7 +143,7 @@ function connectAll(_document $worker): void
 }
 
 
-function sync(Row &$row, string $city = 'Красноярск'): void
+function sync(Row &$row, string $city = 'Красноярск', array $formulas = []): void
 {
 	global $arangodb;
 
@@ -199,6 +194,33 @@ function sync(Row &$row, string $city = 'Красноярск'): void
 
 					// Конвертация
 					$worker->{$key} = $_row[$key] ?? $value;
+				}
+
+				if (strlen($formulas[2]) < 12) {
+					// Не конвертирован номер
+
+					// Инициализация номера
+					$number = convertNumber($_row['phone'] ?? '');
+
+					// Реинициализация строки с новыми данными по ссылке (приоритет из Google Sheets)
+					$row = $row->set((new Flow())->read(From::array([init([
+						'id' => $_row['id'] ?? '',
+						'name' => $_row['name'] ?? '',
+						'phone' =>  "=HYPERLINK(\"https://call.ctrlq.org/+$number\"; \"$number\")",
+						'birth' => $_row['birth'] ?? '',
+						'address' => $_row['address'] ?? '',
+						'commentary' => $_row['commentary'] ?? '',
+						'activity' => $_row['activity'] ?? '',
+						'passport' => $_row['passport'] ?? '',
+						'issued' => $_row['issued'] ?? '',
+						'department' => $_row['department'] ?? '',
+						'hiring' => $_row['hiring'] ?? '',
+						'district' => $_row['district'] ?? '',
+						'requisites' => $_row['requisites'] ?? '',
+						'fired' => $_row['fired'] ?? '',
+						'payment' => $_row['payment'] ?? '',
+						'tax' => $_row['tax'] ?? '',
+					], true)]))->fetch(1)[0]->get('row'));
 				}
 			}
 
@@ -275,18 +297,38 @@ $sheets = require(__DIR__ . '/../settings/workers/sheets.php');
 $client = new Client();
 $client->setScopes(Sheets::SPREADSHEETS);
 $client->setAuthConfig($settings);
-$api = new Sheets($client);
 
 foreach ($sheets as $sheet) {
-	$rows = (new Flow())->read(new GoogleSheetExtractor($api, $document, new Columns($sheet, 'A', 'P'), true, 1000, 'row'));
+	// Перебор таблиц
 
+	// Инициализация обработчика таблиц
+	$sheets = new Sheets($client);
+
+	// Инициализация инстанции Flow для Google Sheet API
+	$rows = (new Flow())->read(new GoogleSheetExtractor($sheets, $document, new Columns($sheet, 'A', 'P'), true, 1000, 'row'));
+
+	// Инициализация счётчика итераций
 	$i = 1;
+
+	$formulas = $sheets->spreadsheets_values->get($document, "$sheet!A:P", ['valueRenderOption' => 'FORMULA']) ?? null;
+
+	if ($formulas === null) continue;
+
 	foreach ($rows->fetch(5000) as $row) {
+		// Перебор строк
+
+		// Запись счётчика
 		++$i;
+
+		// Инициализация буфера строки
 		$buffer = $row;
-		sync($row, $sheet);
+
+		// Синхронизация с базой данных
+		sync($row, $sheet, $formulas[$i - 1]);
+
+		// Запись изменений строки в Google Sheet
 		if ($buffer !== $row) {
-			$api->spreadsheets_values->update(
+			$sheets->spreadsheets_values->update(
 				$document,
 				"$sheet!A$i:P$i",
 				new ValueRange(['values' => [array_values($row->entries()->toArray()['row'])]]),
