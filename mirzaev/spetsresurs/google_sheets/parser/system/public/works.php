@@ -95,8 +95,9 @@ function filterWorker(?string $worker): string
 {
 	global $arangodb;
 
-	return match ((int) $worker) {
-		'', 'Отмена', 'отмена', 0, 00, 000, 0000, 00000, 000000, 0000000, 00000000, 000000000, 0000000000 => '',
+	return match ((int) $worker) { 
+		'Отмена', 'отмена', 'ОТМЕНА' => 'Отмена',
+		'', 0, 00, 000, 0000, 00000, 000000, 0000000, 00000000, 000000000, 0000000000 => '',
 		default => (function () use ($worker, $arangodb) {
 			if (
 				collection::init($arangodb->session, 'workers')
