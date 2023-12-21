@@ -32,29 +32,22 @@ $arangodb = new connection(require __DIR__ . '/../settings/arangodb.php');
 function generateLabel(string $name): string
 {
 	return match ($name) {
-		'imported_created_in_sheets', 'Отметка времени' => 'imported_created_in_sheets',
-		'imported_date', 'Дата заявки' => 'imported_date',
-		'imported_market', 'Ваш магазин' => 'imported_market',
-		'imported_worker', 'Требуемый сотрудник' => 'imported_worker',
-		'imported_work', 'Вид работы' => 'imported_work',
-		'imported_start', 'Начало работы' => 'imported_start',
-		'imported_end', 'Конец работы' => 'imported_end',
-		'imported_hours', 'Часы работы' => 'imported_hours',
-		'created_in_sheets', 'Создано' => 'created_in_sheets',
-		'date', 'Дата' => 'date',
-		'market', 'Магазин' => 'market',
-		'type', 'Тип' => 'type',
-		'address', 'Адрес' => 'address',
-		'worker', 'Сотрудник' => 'worker',
+		'created_in_sheets', 'Отметка времени' => 'created_in_sheets',
+		'updated_in_sheets', 'время последнего изменения' => 'updated_in_sheets',
+		'date', 'дата заявки' => 'date',
+		'market', '№ магазина' => 'market',
+		'type', 'формат' => 'type',
+		'address', 'адрес' => 'address',
+		'worker', 'Код сотрудника (000000)' => 'worker',
 		'name', 'ФИО' => 'name',
-		'work', 'Работа' => 'work',
-		'start', 'Начало' => 'start',
-		'end', 'Конец' => 'end',
-		'hours', 'Часы' => 'hours',
+		'work', 'Вид работ' => 'work',
+		'start', 'Время начала заявки' => 'start',
+		'end', 'Время окончания заявки' => 'end',
+		'hours', 'Количество часов по заявке' => 'hours',
 		'tax', 'ИНН' => 'tax',
-		'confirmed', 'Подтверждено' => 'confirmed',
-		'commentary', 'Комментарий' => 'commentary',
-		'response', 'Ответ' => 'response',
+		'confirmed', 'подтверждение' => 'confirmed',
+		'commentary', 'примечание от ТТ' => 'commentary',
+		'response', 'ответ от контрагента' => 'response',
 		'_id', 'ID'  => '_id',
 		default => $name
 	};
@@ -63,29 +56,22 @@ function generateLabel(string $name): string
 function degenerateLabel(string $name): string
 {
 	return match ($name) {
-		'Отметка времени', 'imported_created_in_sheets' => 'Отметка времени',
-		'Дата заявки', 'imported_date' => 'Дата заявки',
-		'Ваш магазин', 'imported_market' => 'Ваш магазин',
-		'Требуемый сотрудник', 'imported_worker' => 'Требуемый сотрудник',
-		'Вид работы', 'imported_work' => 'Вид работы',
-		'Начало работы', 'imported_start' => 'Начало работы',
-		'Конец работы', 'imported_end' => 'Конец работы',
-		'Часы работы', 'imported_hours' => 'Часы работы',
-		'Создано', 'created_in_sheets' => 'Создано',
-		'Дата', 'date' => 'Дата',
-		'Магазин', 'market' => 'Магазин',
-		'Тип', 'type' => 'Тип',
-		'Адрес', 'address' => 'Адрес',
-		'Сотрудник', 'worker' => 'Сотрудник',
+		'Отметка времени', 'created_in_sheets' => 'Отметка времени',
+		'время последнего изменения', 'updated_in_sheets' => 'время последнего изменения',
+		'дата заявки', 'date' => 'дата заявки',
+		'№ магазина', 'market' => '№ магазина',
+		'формат', 'type' => 'формат',
+		'адрес', 'address' => 'адрес',
+		'Код сотрудника (000000)', 'worker' => 'Код сотрудника (000000)',
 		'ФИО', 'name' => 'ФИО',
-		'Работа', 'work' => 'Работа',
-		'Начало', 'start' => 'Начало',
-		'Конец', 'end' => 'Конец',
-		'Часы', 'hours' => 'Часы',
+		'Вид работ', 'work' => 'Вид работ',
+		'Время начала заявки', 'start' => 'Время начала заявки',
+		'Время окончания заявки', 'end' => 'Время окончания заявки',
+		'Количество часов по заявке', 'hours' => 'Количество часов по заявке',
 		'ИНН', 'tax' => 'ИНН',
-		'Подтверждено', 'confirmed' => 'Подтверждено',
-		'Комментарий', 'commentary' => 'Комментарий',
-		'Ответ', 'response' => 'Ответ',
+		'подтверждение', 'confirmed' => 'подтверждение',
+		'примечание от ТТ', 'commentary' => 'примечание от ТТ',
+		'ответ от контрагента', 'response' => 'ответ от контрагента',
 		'ID', '_id' => 'ID',
 		default => $name
 	};
@@ -95,11 +81,12 @@ function filterWorker(?string $worker): string
 {
 	global $arangodb;
 
-	return match ((int) $worker) {
+	return match ($worker) {
 		'Отмена', 'отмена', 'ОТМЕНА' => 'Отмена',
 		'', 0, 00, 000, 0000, 00000, 000000, 0000000, 00000000, 000000000, 0000000000 => '',
 		default => (function () use ($worker, $arangodb) {
-			if (
+			return $worker;
+			/* if (
 				collection::init($arangodb->session, 'workers')
 				&& collection::search(
 					$arangodb->session,
@@ -109,7 +96,7 @@ function filterWorker(?string $worker): string
 					)
 				)
 			) return $worker;
-			else return '';
+			else return $worker; */
 		})()
 	};
 }
@@ -144,29 +131,22 @@ function sync(int $_i, Row &$row, ?array $raw = null): void
 
 				// Инициализация данных для записи в таблицу
 				$new = [
-					'imported_created_in_sheets' => $work->imported_created_in_sheets['converted'],
-					'imported_date' => $work->imported_date['converted'],
-					'imported_market' => $work->imported_market,
-					'imported_worker' => $work->imported_worker,
-					'imported_work' => $work->imported_work,
-					'imported_start' => $work->imported_start['converted'],
-					'imported_end' => $work->imported_end['converted'],
-					'imported_hours' => $work->imported_hours,
-					'created_in_sheets' => $work->created_in_sheets['converted'],
-					'date' => $work->date['converted'],
-					'market' => $work->market,
-					'type' => $work->type,
-					'address' => $work->address,
+					'created_in_sheets' => $work->created_in_sheets,
+					'date' => $work->date,
 					'worker' => $work->worker,
 					'name' => $work->name,
 					'work' => $work->work,
-					'start' => $work->start['converted'],
-					'end' => $work->end['converted'],
+					'start' => $work->start,
+					'end' => $work->end,
 					'hours' => $work->hours,
-					'tax' => $work->tax,
+					'market' => $work->market,
+					'type' => $work->type,
+					'address' => $work->address,
 					'confirmed' => $work->confirmed,
 					'commentary' => $work->commentary,
 					'response' => $work->response,
+					'updated_in_sheets' => $work->updated_in_sheets,
+					'tax' => $work->tax,
 					'_id' => $work->getId(),
 				];
 
@@ -245,7 +225,6 @@ function sync(int $_i, Row &$row, ?array $raw = null): void
 					}
 				}
 
-
 				if (
 					collection::init($arangodb->session, 'requests', true)	&& collection::init($arangodb->session, 'markets')
 					&& ($market = collection::search(
@@ -313,29 +292,22 @@ function sync(int $_i, Row &$row, ?array $raw = null): void
 				sprintf(
 					"FOR d IN works FILTER d._id == '%s' RETURN d",
 					document::write($arangodb->session,	'works', [
-						'imported_created_in_sheets' => ['number' => $_row['imported_created_in_sheets'] ?? '', 'converted' => $raw[0] ?? ''],
-						'imported_date' => ['number' => $_row['imported_date'] ?? '', 'converted' => $raw[1] ?? ''],
-						'imported_market' => $_row['imported_market'] ?? '',
-						'imported_worker' => $_row['imported_worker'] ?? '',
-						'imported_work' => $_row['imported_work'] ?? '',
-						'imported_start' => ['number' => $_row['imported_start'] ?? '', 'converted' => $raw[5] ?? ''],
-						'imported_end' => ['number' => $_row['imported_end'] ?? '', 'converted' => $raw[6] ?? ''],
-						'imported_hours' => $_row['imported_hours'] ?? '',
-						'created_in_sheets' => ['number' => $_row['imported_created_in_sheets'] ?? '', 'converted' => $raw[0] ?? ''],
-						'date' => ['number' => $_row['imported_date'] ?? '', 'converted' => $raw[1] ?? ''],
-						'market' => $_row['imported_market'] ?? '',
-						'type' => empty($_row['type']) ? "=ЕСЛИ(СОВПАД(I$_i;\"\");\"\"; IFNA(ВПР(K$_i;part_import_KRSK!\$B\$2:\$E\$15603;2;);\"Нет в базе\"))" : $_row['type'],
-						'address' => empty($_row['address']) ? "=ЕСЛИ(СОВПАД(I$_i;\"\");\"\"; IFNA(ВПР(K$_i;part_import_KRSK!\$B\$2:\$E\$15603;4;);\"Нет в базе\"))" : $_row['address'],
-						'worker' => $_row['imported_worker'] ?? '',
-						'name' => empty($_row['name']) ? "=ЕСЛИ(СОВПАД(\$I$_i;\"\");\"\"; ЕСЛИ( НЕ(СОВПАД(IFNA(ВПР(\$N$_i;part_import_KRSK!\$R$2:\$R$4999;1;);\"\");\$N$_i)); ЕСЛИ((СОВПАД(IFNA(ВПР(\$N$_i;part_import_KRSK!\$I\$2:\$L\$4999;4);\"\");\"\")); IFNA(ВПР(\$N$_i;part_import_KRSK!\$I\$2:\$J\$4999;2;); \"Сотрудник не назначен\"); \"УВОЛЕН (В списке работающих)\"); \"УВОЛЕН (В списке уволенных)\"))" : $_row['name'],
-						'work' => $_row['imported_work'] ?? '',
-						'start' => ['number' => $_row['imported_start'] ?? '', 'converted' => $raw[5] ?? ''],
-						'end' => ['number' => $_row['imported_end'] ?? '', 'converted' => $raw[6] ?? ''],
-						'hours' => $_row['imported_hours'] ?? '',
-						'tax' => empty($_row['tax']) ? "=ЕСЛИ(СОВПАД(\$I$_i;\"\");\"\"; IFNA(ВПР(\$N$_i;part_import_KRSK!\$I\$2:\$K\$5000;3;); IFNA(ВПР(\$N$_i;part_import_KRSK!\$R\$2:\$T\$5000;3;);\"000000000000\")))" : $_row['tax'],
+						'created_in_sheets' => $raw[0] ?? '',
+						'date' => $raw[1] ?? '',
+						'worker' => filterWorker($_row['worker'] ?? ''),
+						'name' => "=ЕСЛИ(СОВПАД(\$A$_i;\"\");\"\"; ЕСЛИ( НЕ(СОВПАД(IFNA(ВПР(\$C$_i;part_import_KRSK!\$R$2:\$R$4999;1;);\"\");\$C$_i)); ЕСЛИ((СОВПАД(IFNA(ВПР(\$C$_i;part_import_KRSK!\$I\$2:\$L\$4999;4);\"\");\"\")); IFNA(ВПР(\$C$_i;part_import_KRSK!\$I\$2:\$J\$4999;2;); \"Сотрудник не назначен\"); \"УВОЛЕН (В списке работающих)\"); \"УВОЛЕН (В списке уволенных)\"))",
+						'work' => $_row['work'] ?? '',
+						'start' => $raw[5] ?? '',
+						'end' => $raw[6] ?? '',
+						'hours' => $_row['hours'] ?? '',
+						'market' => $_row['market'] ?? '',
+						'type' => "=ЕСЛИ(СОВПАД(A$_i;\"\");\"\"; IFNA(ВПР(I$_i;part_import_KRSK!\$B\$2:\$E\$15603;2;);\"Нет в базе\"))",
+						'address' => "=ЕСЛИ(СОВПАД(A$_i;\"\");\"\"; IFNA(ВПР(I$_i;part_import_KRSK!\$B\$2:\$E\$15603;4;);\"Нет в базе\"))",
 						'confirmed' => $_row['confirmed'] ?? '',
 						'commentary' => $_row['commentary'] ?? '',
 						'response' => $_row['response'] ?? '',
+						'updated_in_sheets' => $raw[14] ?? '',
+						'tax' => "=ЕСЛИ(СОВПАД(\$A$_i;\"\");\"\"; IFNA(ВПР(\$C$_i;part_import_KRSK!\$I\$2:\$K\$5000;3;); IFNA(ВПР(\$C$_i;part_import_KRSK!\$R\$2:\$T\$5000;3;);\"000000000000\")))",
 						'transfer_to_sheets' => false
 					])
 				)
@@ -374,30 +346,23 @@ function sync(int $_i, Row &$row, ?array $raw = null): void
 
 			// Реинициализация строки с новыми данными по ссылке (приоритет из Google Sheets)
 			$row = $row->set((new Flow())->read(From::array([init([
-				'imported_created_in_sheets' => $raw[0] ?? '',
-				'imported_date' => $raw[1] ?? '',
-				'imported_market' => $_row['imported_market'] ?? '',
-				'imported_worker' => $_row['imported_worker'] ?? '',
-				'imported_work' => $_row['imported_work'] ?? '',
-				'imported_start' => $raw[5] ?? '',
-				'imported_end' => $raw[6] ?? '',
-				'imported_hours' => $_row['imported_hours'] ?? '',
-				'created_in_sheets' => $raw[0] ?? $raw[8] ?? '',
-				'date' => $raw[1] ?? $raw[9] ?? '',
-				'market' => $_row['imported_market'] ?? $_row['market'] ?? '',
-				'type' => empty($_row['type']) ? "=ЕСЛИ(СОВПАД(I$_i;\"\");\"\"; IFNA(ВПР(K$_i;part_import_KRSK!\$B\$2:\$E\$15603;2;);\"Нет в базе\"))" : $_row['type'],
-				'address' => empty($_row['address']) ? "=ЕСЛИ(СОВПАД(I$_i;\"\");\"\"; IFNA(ВПР(K$_i;part_import_KRSK!\$B\$2:\$E\$15603;4;);\"Нет в базе\"))" : $_row['address'],
-				'worker' => filterWorker($_row['imported_worker'] ?? $_row['worker'] ?? ''),
-				'name' => empty($_row['name']) ? "=ЕСЛИ(СОВПАД(\$I$_i;\"\");\"\"; ЕСЛИ( НЕ(СОВПАД(IFNA(ВПР(\$N$_i;part_import_KRSK!\$R$2:\$R$4999;1;);\"\");\$N$_i)); ЕСЛИ((СОВПАД(IFNA(ВПР(\$N$_i;part_import_KRSK!\$I\$2:\$L\$4999;4);\"\");\"\")); IFNA(ВПР(\$N$_i;part_import_KRSK!\$I\$2:\$J\$4999;2;); \"Сотрудник не назначен\"); \"УВОЛЕН (В списке работающих)\"); \"УВОЛЕН (В списке уволенных)\"))" : $_row['name'],
-				'work' => $_row['imported_work'] ?? $_row['work'] ?? '',
-				'start' => $raw[5] ?? $raw[16] ?? '',
-				'end' => $raw[6] ?? $raw[17] ?? '',
-				'hours' => $_row['imported_hours'] ?? $_row['hours'] ?? '',
-				'tax' => empty($_row['tax']) ? "=ЕСЛИ(СОВПАД(\$I$_i;\"\");\"\"; IFNA(ВПР(\$N$_i;part_import_KRSK!\$I\$2:\$K\$5000;3;); IFNA(ВПР(\$N$_i;part_import_KRSK!\$R\$2:\$T\$5000;3;);\"000000000000\")))" : $_row['tax'],
+				'created_in_sheets' => $raw[0] ?? '',
+				'date' => $raw[1] ?? '',
+				'worker' => filterWorker($_row['worker'] ?? ''),
+				'name' => "=ЕСЛИ(СОВПАД(\$A$_i;\"\");\"\"; ЕСЛИ( НЕ(СОВПАД(IFNA(ВПР(\$C$_i;part_import_KRSK!\$R$2:\$R$4999;1;);\"\");\$C$_i)); ЕСЛИ((СОВПАД(IFNA(ВПР(\$C$_i;part_import_KRSK!\$I\$2:\$L\$4999;4);\"\");\"\")); IFNA(ВПР(\$C$_i;part_import_KRSK!\$I\$2:\$J\$4999;2;); \"Сотрудник не назначен\"); \"УВОЛЕН (В списке работающих)\"); \"УВОЛЕН (В списке уволенных)\"))",
+				'work' => $_row['work'] ?? '',
+				'start' => $raw[5] ?? '',
+				'end' => $raw[6] ?? '',
+				'hours' => $_row['hours'] ?? '',
+				'market' => $_row['market'] ?? '',
+				'type' => "=ЕСЛИ(СОВПАД(A$_i;\"\");\"\"; IFNA(ВПР(I$_i;part_import_KRSK!\$B\$2:\$E\$15603;2;);\"Нет в базе\"))",
+				'address' => "=ЕСЛИ(СОВПАД(A$_i;\"\");\"\"; IFNA(ВПР(I$_i;part_import_KRSK!\$B\$2:\$E\$15603;4;);\"Нет в базе\"))",
 				'confirmed' => $_row['confirmed'] ?? '',
 				'commentary' => $_row['commentary'] ?? '',
 				'response' => $_row['response'] ?? '',
-				'_id' => $_row['_id'] ?? '',
+				'updated_in_sheets' => $raw[14] ?? '',
+				'tax' => "=ЕСЛИ(СОВПАД(\$A$_i;\"\");\"\"; IFNA(ВПР(\$C$_i;part_import_KRSK!\$I\$2:\$K\$5000;3;); IFNA(ВПР(\$C$_i;part_import_KRSK!\$R\$2:\$T\$5000;3;);\"000000000000\")))",
+				'_id' => $_row['_id'] ?? ''
 			], true)]))->fetch(1)[0]->get('row'));
 		} else return;
 	else throw new exception('Не удалось инициализировать коллекцию');
@@ -417,30 +382,32 @@ foreach ($sheets as $sheet) {
 	// Инициализация обработчика таблиц
 	$sheets = new Sheets($client);
 
-	// Инициализация инстанции Flow для Google Sheet API
-	$rows = (new Flow())->read(new GoogleSheetExtractor($sheets, $document, new Columns($sheet, 'A', 'X'), true, 1000, 'row', ['valueRenderOption' => 'FORMULA']));
+	// Инициализация инстанций Flow для Google Sheet API
+	$formulas = (new Flow())->read(new GoogleSheetExtractor($sheets, $document, new Columns($sheet, 'A', 'Q'), true, 1000, 'row', ['valueRenderOption' => 'FORMULA']));
+	$rows = $sheets->spreadsheets_values->get($document, "$sheet!A:Q");
 
 	// Инициализация счётчика итераций
 	$i = 1;
 
-	foreach ($rows->fetch(10000) as $row) {
+	foreach ($formulas->fetch(50000) as $formula) {
+
 		// Перебор строк
 
 		// Запись счётчика
 		++$i;
 
 		// Инициализация буфера строки
-		$buffer = $row;
+		$buffer = $formula;
 
 		// Синхронизация с базой данных
-		sync($i, $row, $sheets->spreadsheets_values->get($document, "$sheet!A$i:X$i")[0] ?? null);
+		sync($i, $formula, $rows[$i - 1] ?? null);
 
 		// Запись изменений строки в Google Sheet
-		if ($buffer !== $row) {
+		if ($buffer !== $formula) {
 			$sheets->spreadsheets_values->update(
 				$document,
-				"$sheet!A$i:X$i",
-				new ValueRange(['values' => [array_values($row->entries()->toArray()['row'])]]),
+				"$sheet!A$i:Q$i",
+				new ValueRange(['values' => [array_values($formula->entries()->toArray()['row'])]]),
 				['valueInputOption' => 'USER_ENTERED']
 			);
 

@@ -79,7 +79,7 @@ function convertNumber(string $number): string
 {
 
 	// Очистка всего кроме цифр, а потом поиск 10 первых чисел (без восьмёрки)
-	preg_match('/^8(\d{10})/', preg_replace("/[^\d]/", "", $number), $matches);
+	preg_match('/\d?(\d{10})/', preg_replace("/[^\d]/", "", $number), $matches);
 
 	// Инициализация номера
 	$number = isset($matches[1]) ? 7 . $matches[1] : $number;
