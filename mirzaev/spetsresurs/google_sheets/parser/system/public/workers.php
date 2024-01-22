@@ -34,14 +34,14 @@ function generateLabel(string $name): string
 	return match ($name) {
 		'id', 'ID' => 'id',
 		'name', 'ФИО' => 'name',
-		'phone', 'Номер' => 'phone',
+		'number', 'Номер' => 'number',
 		'birth', 'Дата рождения' => 'birth',
 		'address', 'Регистрация' => 'address',
-		'commentary', 'Комментарий' => 'commentary',
+		'commentary', 'Комментарий', 'примечание к звонкам' => 'commentary',
 		'activity', 'Работа' => 'activity',
 		'passport', 'Паспорт' => 'passport',
 		'issued', 'Выдан' => 'issued',
-		'department', 'Подразделение' => 'department',
+		'department', 'Подразделение', 'Код подразделения' => 'department',
 		'hiring', 'Нанят' => 'hiring',
 		'district', 'Район', 'район' => 'district',
 		'requisites', 'Реквизиты', 'реквизиты' => 'requisites',
@@ -57,14 +57,14 @@ function degenerateLabel(string $name): string
 	return match ($name) {
 		'ID', 'id' => 'ID',
 		'ФИО', 'name' => 'ФИО',
-		'Номер', 'phone' => 'Номер',
+		'Номер', 'number' => 'Номер',
 		'Дата рождения', 'birth' => 'Дата рождения',
 		'Регистрация', 'address' => 'Регистрация',
-		'Комментарий', 'commentary' => 'Комментарий',
+		'Комментарий', 'примечание к звонкам', 'commentary' => 'Комментарий',
 		'Работа', 'activity' => 'Работа',
 		'Паспорт', 'passport' => 'Паспорт',
 		'Выдан', 'issued' => 'Выдан',
-		'Подразделение', 'department' => 'Подразделение',
+		'Подразделение', 'Код подразделения', 'department' => 'Подразделение',
 		'Нанят', 'hiring' => 'Нанят',
 		'Район', 'district' => 'Район',
 		'Реквизиты', 'requisites' => 'Реквизиты',
@@ -122,7 +122,7 @@ function connect(_document $worker, _document $robot): void
 				)
 			))
 	) {
-		// Инициализировано ребро: workers -> robot (любой)
+		// Инициализировано ребро: worker -> robot (любой)
 
 		// Активация
 		$robot->status = 'active';
@@ -134,17 +134,40 @@ function connectAll(_document $worker): void
 {
 	global $arangodb;
 
-	// Инициализация ребра: workers -> viber
+	// Инициализация ребра: worker -> viber
 	if (
 		collection::init($arangodb->session, 'viber')
 		&& $viber = collection::search(
 			$arangodb->session,
 			sprintf(
 				"FOR d IN viber FILTER d.number == '%d' RETURN d",
-				$worker->phone
+				$worker->number
 			)
 		)
 	) connect($worker, $viber);
+
+	// Инициализация ребра: worker -> telegram
+	if (
+		collection::init($arangodb->session, 'telegram')
+		&& $viber = collection::search(
+			$arangodb->session,
+			sprintf(
+				"FOR d IN telegram FILTER d.number == '%d' RETURN d",
+				$worker->number
+			)
+		)
+	) connect($worker, $viber);
+}
+
+
+function id()
+{
+	global $arangodb;
+
+	return collection::search(
+		$arangodb->session,
+		"RETURN MAX((FOR d in worker RETURN +d.id))",
+	) + 1;
 }
 
 
@@ -155,18 +178,21 @@ function sync(Row &$row, string $city = 'Красноярск'): void
 	// Инициализация строки в Google Sheet
 	$_row = init($row->toArray()['row']);
 
-	if (collection::init($arangodb->session, 'workers'))
-		if (!empty($_row['id']) && $worker = collection::search($arangodb->session, sprintf("FOR d IN workers FILTER d.id == '%s' RETURN d", $_row['id']))) {
+	// Инициализация ФИО
+	$name = explode(' ', $_row['name']);
+
+	if (collection::init($arangodb->session, 'worker'))
+		if (!empty($_row['id']) && $worker = collection::search($arangodb->session, sprintf("FOR d IN worker FILTER d.id == '%s' RETURN d", $_row['id']))) {
 			// Найдена запись работника (строки) в базе данных и включен режим перезаписи (приоритет - google sheets)
 
-			if ($worker->transfer_to_sheets) {
+			if (false && $worker->transfer_to_sheets) {
 				// Запрошен форсированный перенос данных из базы данных в таблицу
 
 				// Инициализация данных для записи в таблицу
-				$new = [
-					'id' => $worker->id ?? '',
+				/* $new = [
+					'id' => $worker->id ?? id(),
 					'name' => $worker->name ?? '',
-					'phone' => convertNumber($worker->phone ?? ''),
+					'number' => convertNumber($worker->number ?? ''),
 					'birth' => $worker->birth ?? '',
 					'address' => $worker->address ?? '',
 					'commentary' => $worker->commentary ?? '',
@@ -180,73 +206,100 @@ function sync(Row &$row, string $city = 'Красноярск'): void
 					'fired' => $worker->fired ?? '',
 					'payment' => $worker->payment ?? '',
 					'tax' => $worker->tax ?? '',
-				];
+				]; */
 
 				// Замена NULL на пустую строку
-				foreach ($new as $key => &$value) if ($value === null) $value = '';
+				/* foreach ($new as $key => &$value) if ($value === null) $value = ''; */
 
 				// Реинициализация строки с новыми данными по ссылке (приоритет из базы данных)
-				if ($_row !== $new) $row = $row->set((new Flow())->read(From::array([init($new, true)]))->fetch(1)[0]->get('row'));
+				/* if ($_row !== $new) $row = $row->set((new Flow())->read(From::array([init($new, true)]))->fetch(1)[0]->get('row')); */
 
 				// Деактивация форсированного трансфера
-				$worker->transfer_to_sheets = false;
+				/* $worker->transfer_to_sheets = false; */
 			} else {
 				// Перенос изменений из Google Sheet в инстанцию документа в базе данных
 
 				// Реинициализация данных в инстанции документа в базе данных с данными из Google Sheet
-				foreach ($worker->getAll() as $key => $value) {
-					// Перебор всех записанных значений в инстанции документа в базе данных
+				/* foreach ($worker->getAll() as $key => $value) { */
+				// Перебор всех записанных значений в инстанции документа в базе данных
 
-					// Конвертация
-					$worker->{$key} = $_row[$key] ?? $value;
-				}
+				// Конвертация
+				/* $worker->{$key} = $_row[$key] ?? $value; */
+				/* } */
 			}
 
 			// Обновление инстанции документа в базе данных
-			document::update($arangodb->session, $worker);
+			/* document::update($arangodb->session, $worker); */
 
 			// Подключение к чат-роботам
-			connectAll($worker);
+			/* connectAll($worker); */
 		} else	if (
-			!empty($_row['id'])
-			&& !empty($_row['phone'])
-			&& $worker = collection::search(
+			/* !empty($_row['id']) */
+			/* && !empty($_row['number']) */
+			/* &&  */
+			$worker = collection::search(
 				$arangodb->session,
 				sprintf(
-					"FOR d IN workers FILTER d._id == '%s' RETURN d",
-					document::write($arangodb->session,	'workers', [
-						'id' => $_row['id'] ?? '',
-						'name' => $_row['name'] ?? '',
-						'phone' => convertNumber($_row['phone'] ?? ''),
+					"FOR d IN worker FILTER d._id == '%s' RETURN d",
+					document::write($arangodb->session,	'worker', [
+						'id' => $_row['id'] ?? id(),
+						'name' => [
+							'first' => $name[1] ?? $_row['name'] ?? '',
+							'second' => $name[0] ?? '',
+							'last' => $name[2] ?? ''
+						],
+						'number' => convertNumber($_row['number'] ?? ''),
 						'birth' => $_row['birth'] ?? '',
 						'address' => $_row['address'] ?? '',
 						'commentary' => $_row['commentary'] ?? '',
 						'activity' => $_row['activity'] ?? '',
 						'passport' => $_row['passport'] ?? '',
-						'issued' => $_row['issued'] ?? '',
-						'department' => $_row['department'] ?? '',
+						'issued' => '',
+						'department' => [
+							'number' => $_row['department'] ?? '',
+							'address' => $_row['issued'] ?? ''
+						],
 						'hiring' => $_row['hiring'] ?? '',
 						'district' => $_row['district'] ?? '',
 						'requisites' => $_row['requisites'] ?? '',
 						'fired' => $_row['fired'] ?? '',
 						'payment' => $_row['payment'] ?? '',
 						'tax' => $_row['tax'] ?? '',
-						'city' => $city,
-						'transfer_to_sheets' => false
+						'city' => 'Красноярск' ?? $city,
+						'active' => true
 					])
 				)
 			)
 		) {
 			// Не найдена запись работника (строки) в базе данных и была создана
 
+			// Создание аккаунта
+			$account = document::write($arangodb->session,	'account', [
+				'type' => 'worker',
+				'name' => [
+					'first' => $name[1] ?? $_row['name'] ?? '',
+					'second' => $name[0] ?? '',
+					'last' => $name[2] ?? ''
+				],
+				'number' => convertNumber($_row['number'] ?? ''),
+				'active' => true
+			]);
+
+			// Подключение сотрудника к аккаунту. Создание ребра: account -> worker
+			document::write(
+				$arangodb->session,
+				'account_edge_worker',
+				['_from' => $account, '_to' => $worker->getId()]
+			);
+
 			// Инициализация номера
-			$number = convertNumber($_row['phone'] ?? '');
+			/* $number = convertNumber($_row['number'] ?? ''); */
 
 			// Реинициализация строки с новыми данными по ссылке (приоритет из Google Sheets)
-			$row = $row->set((new Flow())->read(From::array([init([
+			/* $row = $row->set((new Flow())->read(From::array([init([
 				'id' => $_row['id'] ?? '',
 				'name' => $_row['name'] ?? '',
-				'phone' =>  "=HYPERLINK(\"https://call.ctrlq.org/+$number\"; \"$number\")",
+				'number' =>  "=HYPERLINK(\"https://call.ctrlq.org/+$number\"; \"$number\")",
 				'birth' => $_row['birth'] ?? '',
 				'address' => $_row['address'] ?? '',
 				'commentary' => $_row['commentary'] ?? '',
@@ -260,10 +313,10 @@ function sync(Row &$row, string $city = 'Красноярск'): void
 				'fired' => $_row['fired'] ?? '',
 				'payment' => $_row['payment'] ?? '',
 				'tax' => $_row['tax'] ?? '',
-			], true)]))->fetch(1)[0]->get('row'));
+			], true)]))->fetch(1)[0]->get('row')); */
 
 			// Подключение к чат-роботам
-			connectAll($worker);
+			/* connectAll($worker); */
 		} else return;
 	else throw new exception('Не удалось инициализировать коллекцию');
 }
@@ -278,23 +331,23 @@ $client->setAuthConfig($settings);
 $api = new Sheets($client);
 
 foreach ($sheets as $sheet) {
-	$rows = (new Flow())->read(new GoogleSheetExtractor($api, $document, new Columns($sheet, 'A', 'P'), true, 1000, 'row'));
+	$rows = (new Flow())->read(new GoogleSheetExtractor($api, $document, new Columns($sheet, 'A', 'W'), true, 1000, 'row'));
 
 	$i = 1;
-	foreach ($rows->fetch(5000) as $row) {
+	foreach ($rows->fetch(4183) as $row) {
 		++$i;
 		$buffer = $row;
 		sync($row, $sheet);
 		if ($buffer !== $row) {
-			$api->spreadsheets_values->update(
+			/* $api->spreadsheets_values->update(
 				$document,
 				"$sheet!A$i:P$i",
 				new ValueRange(['values' => [array_values($row->entries()->toArray()['row'])]]),
 				['valueInputOption' => 'USER_ENTERED']
-			);
+			); */
 
 			// Ожидание для того, чтобы снизить шанс блокировки от Google
-			sleep(3);
+			/* sleep(3); */
 		}
 	}
 }
