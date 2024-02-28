@@ -77,7 +77,6 @@ function degenerateLabel(string $name): string
 
 function convertNumber(string $number): string
 {
-
 	// Очистка всего кроме цифр, а потом поиск 10 первых чисел (без восьмёрки)
 	preg_match('/\d?(\d{10})/', preg_replace("/[^\d]/", "", $number), $matches);
 

@@ -34,7 +34,7 @@ function generateLabel(string $name): string
 	return match ($name) {
 		'id', 'ID', 'ТТ'  => 'id',
 		'type', 'ТИП', 'Тип', 'тип' => 'type',
-		'director', 'ДИРЕКТОР', 'Директор', 'директор' => 'director',
+		'name', 'ДИРЕКТОР', 'Директор', 'директор' => 'name',
 		'address', 'АДРЕС', 'Адрес', 'адрес' => 'address',
 		default => $name
 	};
@@ -45,10 +45,21 @@ function degenerateLabel(string $name): string
 	return match ($name) {
 		'ID', 'id' => 'ID',
 		'ТИП', 'type' => 'ТИП',
-		'ДИРЕКТОР', 'director' => 'ДИРЕКТОР',
+		'ДИРЕКТОР', 'name' => 'ДИРЕКТОР',
 		'АДРЕС', 'address' => 'АДРЕС',
 		default => $name
 	};
+}
+
+function convertNumber(string $number): string
+{
+	// Очистка всего кроме цифр, а потом поиск 10 первых чисел (без восьмёрки)
+	preg_match('/\d?(\d{10})/', preg_replace("/[^\d]/", "", $number), $matches);
+
+	// Инициализация номера
+	$number = isset($matches[1]) ? 7 . $matches[1] : $number;
+
+	return $number;
 }
 
 function init(array $row, bool $reverse = false): array
@@ -68,14 +79,17 @@ function sync(Row &$row, string $city = 'Красноярск'): void
 	// Инициализация строки в Google Sheet
 	$_row = init($row->toArray()['row']);
 
+	// Инициализация ФИО
+	$name = explode(' ', $_row['name']);
+
 	if (collection::init($arangodb->session, 'markets'))
 		if (!empty($_row['id']) && $market = collection::search($arangodb->session, sprintf("FOR d IN markets FILTER d.id == '%s' RETURN d", $_row['id']))) {
 			// Найдена запись магазина (строки) в базе данных и включен режим перезаписи (приоритет - google sheets)
 
-			if ($market->transfer_to_sheets) {
+			if (false && $market->transfer_to_sheets) {
 				// Запрошен форсированный перенос данных из базы данных в таблицу
 
-				// Инициализация данных для записи в таблицу
+				/* // Инициализация данных для записи в таблицу
 				$new = [
 					'id' => $market->id ?? '',
 					'type' => $market->type ?? '',
@@ -90,21 +104,21 @@ function sync(Row &$row, string $city = 'Красноярск'): void
 				if ($_row !== $new) $row = $row->set((new Flow())->read(From::array([init($new, true)]))->fetch(1)[0]->get('row'));
 
 				// Деактивация форсированного трансфера
-				$market->transfer_to_sheets = false;
+				$market->transfer_to_sheets = false; */
 			} else {
 				// Перенос изменений из Google Sheet в инстанцию документа в базе данных
 
-				// Реинициализация данных в инстанции документа в базе данных с данными из Google Sheet
+				/* // Реинициализация данных в инстанции документа в базе данных с данными из Google Sheet
 				foreach ($market->getAll() as $key => $value) {
 					// Перебор всех записанных значений в инстанции документа в базе данных
 
 					// Конвертация
 					$market->{$key} = $_row[$key] ?? $value;
-				}
+				} */
 			}
 
-			// Обновление инстанции документа в базе данных
-			document::update($arangodb->session, $market);
+			/* // Обновление инстанции документа в базе данных
+			document::update($arangodb->session, $market); */
 		} else	if (
 			$market = collection::search(
 				$arangodb->session,
@@ -113,15 +127,38 @@ function sync(Row &$row, string $city = 'Красноярск'): void
 					document::write($arangodb->session,	'markets', [
 						'id' => $_row['id'] ?? '',
 						'type' => $_row['type'] ?? '',
-						'director' => $_row['director'] ?? '',
+						'name' => [
+							'first' => $name[1] ?? $_row['name'] ?? '',
+							'second' => $name[0] ?? '',
+							'last' => $name[2] ?? ''
+						],
 						'address' => $_row['address'] ?? '',
 						'city' => $city,
-						'transfer_to_sheets' => false
+						'active' => true
 					])
 				)
 			)
 		) {
 			// Не найдена запись магазина (строки) в базе данных и была создана
+
+			// Создание аккаунта
+			$account = document::write($arangodb->session,	'account', [
+				'type' => 'market',
+				'name' => [
+					'first' => $name[1] ?? $_row['name'] ?? '',
+					'second' => $name[0] ?? '',
+					'last' => $name[2] ?? ''
+				],
+				'number' => convertNumber($_row['number'] ?? ''),
+				'active' => true
+			]);
+
+			// Подключение сотрудника к аккаунту. Создание ребра: account -> market
+			document::write(
+				$arangodb->session,
+				'account_edge_market',
+				['_from' => $account, '_to' => $market->getId()]
+			);
 
 			/* // Реинициализация строки с новыми данными по ссылке (приоритет из Google Sheets)
 			$row = $row->set((new Flow())->read(From::array([init([
@@ -147,12 +184,12 @@ foreach ($sheets as $sheet) {
 	$rows = (new Flow())->read(new GoogleSheetExtractor($api, $document, new Columns($sheet, 'A', 'D'), true, 1000, 'row'));
 
 	$i = 1;
-	foreach ($rows->fetch(3000) as $row) {
+	foreach ($rows->fetch(5000) as $row) {
 		++$i;
 		$buffer = $row;
 		sync($row, $sheet);
 		if ($buffer !== $row) {
-			$api->spreadsheets_values->update(
+			/* $api->spreadsheets_values->update(
 				$document,
 				"$sheet!A$i:D$i",
 				new ValueRange(['values' => [array_values($row->entries()->toArray()['row'])]]),
@@ -160,7 +197,7 @@ foreach ($sheets as $sheet) {
 			);
 
 			// Ожидание для того, чтобы снизить шанс блокировки от Google
-			sleep(3);
+			sleep(3); */
 		}
 	}
 }
