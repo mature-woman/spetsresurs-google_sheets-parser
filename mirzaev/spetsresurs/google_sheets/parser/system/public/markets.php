@@ -32,10 +32,11 @@ $arangodb = new connection(require __DIR__ . '/../settings/arangodb.php');
 function generateLabel(string $name): string
 {
 	return match ($name) {
-		'id', 'ID', 'ТТ'  => 'id',
-		'type', 'ТИП', 'Тип', 'тип' => 'type',
-		'name', 'ДИРЕКТОР', 'Директор', 'директор' => 'name',
+		'id', 'ID', 'ТТ', '№ТТ'  => 'id',
+		'type', 'ТИП', 'Тип', 'тип', 'ФОРМАТ' => 'type',
+		'name', 'ДИРЕКТОР', 'Директор', 'директор', 'ДИРЕКТОР ТТ' => 'name',
 		'address', 'АДРЕС', 'Адрес', 'адрес' => 'address',
+		'city', 'город', 'Город', 'Направление' => 'city',
 		default => $name
 	};
 }
@@ -47,6 +48,7 @@ function degenerateLabel(string $name): string
 		'ТИП', 'type' => 'ТИП',
 		'ДИРЕКТОР', 'name' => 'ДИРЕКТОР',
 		'АДРЕС', 'address' => 'АДРЕС',
+		'city' => 'ГОРОД',
 		default => $name
 	};
 }
@@ -72,7 +74,7 @@ function init(array $row, bool $reverse = false): array
 }
 
 
-function sync(Row &$row, string $city = 'Красноярск'): void
+function sync(Row &$row): void
 {
 	global $arangodb;
 
@@ -82,8 +84,8 @@ function sync(Row &$row, string $city = 'Красноярск'): void
 	// Инициализация ФИО
 	$name = explode(' ', $_row['name']);
 
-	if (collection::init($arangodb->session, 'markets'))
-		if (!empty($_row['id']) && $market = collection::search($arangodb->session, sprintf("FOR d IN markets FILTER d.id == '%s' RETURN d", $_row['id']))) {
+	if (collection::init($arangodb->session, 'market'))
+		if (!empty($_row['id']) && $market = collection::search($arangodb->session, sprintf("FOR d IN market FILTER d.id == '%s' RETURN d", $_row['id']))) {
 			// Найдена запись магазина (строки) в базе данных и включен режим перезаписи (приоритет - google sheets)
 
 			if (false && $market->transfer_to_sheets) {
@@ -119,12 +121,12 @@ function sync(Row &$row, string $city = 'Красноярск'): void
 
 			/* // Обновление инстанции документа в базе данных
 			document::update($arangodb->session, $market); */
-		} else	if (
+		} else if (
 			$market = collection::search(
 				$arangodb->session,
 				sprintf(
-					"FOR d IN markets FILTER d._id == '%s' RETURN d",
-					document::write($arangodb->session,	'markets', [
+					"FOR d IN market FILTER d._id == '%s' RETURN d",
+					document::write($arangodb->session,	'market', [
 						'id' => $_row['id'] ?? '',
 						'type' => $_row['type'] ?? '',
 						'name' => [
@@ -133,7 +135,7 @@ function sync(Row &$row, string $city = 'Красноярск'): void
 							'last' => $name[2] ?? ''
 						],
 						'address' => $_row['address'] ?? '',
-						'city' => $city,
+						'city' => $_row['city'] ?? '',
 						'active' => true
 					])
 				)
@@ -181,13 +183,13 @@ $client->setAuthConfig($settings);
 $api = new Sheets($client);
 
 foreach ($sheets as $sheet) {
-	$rows = (new Flow())->read(new GoogleSheetExtractor($api, $document, new Columns($sheet, 'A', 'D'), true, 1000, 'row'));
+	$rows = (new Flow())->read(new GoogleSheetExtractor($api, $document, new Columns($sheet, 'B', 'F'), true, 1000, 'row'));
 
 	$i = 1;
 	foreach ($rows->fetch(5000) as $row) {
-		++$i;
+		if (++$i === 2) continue;
 		$buffer = $row;
-		sync($row, $sheet);
+		sync($row);
 		if ($buffer !== $row) {
 			/* $api->spreadsheets_values->update(
 				$document,
