@@ -84,8 +84,11 @@ function sync(Row &$row): void
 	// Инициализация ФИО
 	$name = explode(' ', $_row['name']);
 
+	// Инициализация идентификатора
+	if (empty($id = preg_replace('/([^^\d]?)(\d+).*/u', 'K$2', $_row['id']))) return;
+
 	if (collection::init($arangodb->session, 'market'))
-		if (!empty($_row['id']) && $market = collection::search($arangodb->session, sprintf("FOR d IN market FILTER d.id == '%s' RETURN d", $_row['id']))) {
+		if ($market = collection::search($arangodb->session, sprintf("FOR d IN market FILTER d.id == '%s' RETURN d", $id))) {
 			// Найдена запись магазина (строки) в базе данных и включен режим перезаписи (приоритет - google sheets)
 
 			if (false && $market->transfer_to_sheets) {
@@ -127,7 +130,7 @@ function sync(Row &$row): void
 				sprintf(
 					"FOR d IN market FILTER d._id == '%s' RETURN d",
 					document::write($arangodb->session,	'market', [
-						'id' => $_row['id'] ?? '',
+						'id' => $id,
 						'type' => $_row['type'] ?? '',
 						'name' => [
 							'first' => $name[1] ?? $_row['name'] ?? '',
